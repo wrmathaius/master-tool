@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Physics, useBox, useSphere, useCylinder } from '@react-three/cannon'
-import { OrbitControls, PerspectiveCamera, Environment, ContactShadows, Text } from '@react-three/drei'
+import { OrbitControls, PerspectiveCamera, ContactShadows, Text, Stars } from '@react-three/drei'
 import * as THREE from 'three'
 
 // Skills data com efeitos visuais
@@ -551,8 +551,8 @@ export default function Scene3D({ selectedDice, activeSkill, onRollTrigger, last
       <pointLight position={[-5, 3, -5]} intensity={0.5} color="#ff8800" />
       <pointLight position={[5, 3, -5]} intensity={0.5} color="#ffaa00" />
       
-      {/* Environment para reflexos realistas */}
-      <Environment preset="sunset" blur={0.8} />
+      {/* Fundo estrelado para atmosfera mágica */}
+      <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
       
       {/* Sombras de contato para realismo */}
       <ContactShadows 
