@@ -364,11 +364,26 @@ function DiceTray() {
   return (
     <group>
       {/* Corpos físicos (invisíveis, apenas para colisão) */}
-      <box ref={floorRef} />
-      <box ref={backWallRef} />
-      <box ref={frontWallRef} />
-      <box ref={leftWallRef} />
-      <box ref={rightWallRef} />
+      <mesh ref={floorRef}>
+        <boxGeometry args={[4, 1, 3]} />
+        <meshBasicMaterial visible={false} />
+      </mesh>
+      <mesh ref={backWallRef}>
+        <boxGeometry args={[trayWidth + wallThickness * 2, wallHeight, wallThickness]} />
+        <meshBasicMaterial visible={false} />
+      </mesh>
+      <mesh ref={frontWallRef}>
+        <boxGeometry args={[trayWidth + wallThickness * 2, wallHeight, wallThickness]} />
+        <meshBasicMaterial visible={false} />
+      </mesh>
+      <mesh ref={leftWallRef}>
+        <boxGeometry args={[wallThickness, wallHeight, trayDepth]} />
+        <meshBasicMaterial visible={false} />
+      </mesh>
+      <mesh ref={rightWallRef}>
+        <boxGeometry args={[wallThickness, wallHeight, trayDepth]} />
+        <meshBasicMaterial visible={false} />
+      </mesh>
       
       {/* Visual da bandeja (apenas renderização) */}
       {/* Chão */}
