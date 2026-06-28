@@ -60,7 +60,9 @@ const DICE_TYPES = [
  * Sincroniza a posição/rotação do Three.js mesh com o corpo físico do Cannon
  */
 function Dice({ position, diceType, activeSkill, onRollComplete }) {
-  // Referência ao mesh do dado para acessar sua rotação e calcular o resultado
+  // Referência ao grupo para conter o mesh visual
+  const groupRef = useRef()
+  // Referência ao mesh visual do dado
   const meshRef = useRef()
   
   // Estado para controlar se o dado já rolou e parou
@@ -68,16 +70,11 @@ function Dice({ position, diceType, activeSkill, onRollComplete }) {
   const [result, setResult] = useState(null)
   
   // Rastreia velocidade anterior para detectar quando o dado para
-  const prevVelocity = useRef({ linear: 0, angular: 0 })
   const stopCounter = useRef(0)
   
-  // Define o corpo físico baseado no tipo de dado
-  // Para simplificação da física, usamos esferas para todos os dados
-  // Em produção, você usaria geometrias específicas (tetraedro, cubo, etc.)
-  let physicsBody
+  // Define a geometria baseada no tipo de dado
   let geometry
   
-  // Configuração da geometria baseada no tipo de dado
   switch(diceType.type) {
     case 'd4':
       geometry = <tetrahedronGeometry args={[0.6]} />
@@ -105,7 +102,7 @@ function Dice({ position, diceType, activeSkill, onRollComplete }) {
   }
   
   // Hook do Cannon para criar um corpo esférico com física
-  // useSphere retorna [ref, api] onde api controla o corpo físico
+  // useSphere retorna [ref, api] onde ref é usada para sync e api controla o corpo físico
   const [ref, api] = useSphere(() => ({
     mass: 1, // Massa do dado (afeta como ele quica)
     position: position,
@@ -124,15 +121,12 @@ function Dice({ position, diceType, activeSkill, onRollComplete }) {
     stopCounter.current = 0
     
     // Aplica força aleatória para lançar o dado
-    // A força é aplicada para cima e em direção aleatória
     const forceX = (Math.random() - 0.5) * 15
-    const forceY = 8 + Math.random() * 5 // Força para cima
+    const forceY = 8 + Math.random() * 5
     const forceZ = (Math.random() - 0.5) * 15
     
-    // Aplica impulso linear (força instantânea)
     api.applyImpulse([forceX, forceY, forceZ], [0, 0, 0])
     
-    // Aplica torque (rotação) aleatória
     const torqueX = (Math.random() - 0.5) * 20
     const torqueY = (Math.random() - 0.5) * 20
     const torqueZ = (Math.random() - 0.5) * 20
@@ -141,26 +135,25 @@ function Dice({ position, diceType, activeSkill, onRollComplete }) {
   
   // Expõe a função rollDice para o componente pai chamar
   useEffect(() => {
-    if (meshRef.current) {
-      meshRef.current.rollDice = rollDice
+    if (groupRef.current) {
+      groupRef.current.rollDice = rollDice
     }
   }, [hasRolled])
   
   // Loop de animação executado a cada frame
   useFrame((state, delta) => {
-    if (!ref.current || !meshRef.current) return
+    if (!ref.current || !groupRef.current) return
     
-    // Sincroniza a posição e rotação do mesh Three.js com o corpo físico Cannon
-    // Esta é a parte CRUCIAL da integração Three.js + Cannon
-    meshRef.current.position.copy(ref.current.position)
-    meshRef.current.quaternion.copy(ref.current.quaternion)
+    // CRUCIAL: Sincroniza a posição e rotação do grupo Three.js com o corpo físico Cannon
+    // O Cannon atualiza ref.current, e nós copiamos para o mesh visual
+    groupRef.current.position.copy(ref.current.position)
+    groupRef.current.quaternion.copy(ref.current.quaternion)
     
     // Verifica se o dado parou de se mover
     if (hasRolled && !result) {
       const velocity = ref.current.velocity
       const angularVelocity = ref.current.angularVelocity
       
-      // Calcula magnitude das velocidades
       const linearSpeed = Math.sqrt(
         velocity.x * velocity.x + 
         velocity.y * velocity.y + 
@@ -176,18 +169,16 @@ function Dice({ position, diceType, activeSkill, onRollComplete }) {
       if (linearSpeed < 0.1 && angularSpeed < 0.1) {
         stopCounter.current++
         
-        // Espera alguns frames para garantir que realmente parou
         if (stopCounter.current > 10) {
           // Calcula o resultado baseado na rotação final
-          const calculatedResult = calculateDiceResult(meshRef.current, diceType)
+          const calculatedResult = calculateDiceResult(groupRef.current, diceType)
           setResult(calculatedResult)
           
-          // Notifica o componente pai que o dado completou a rolagem
           if (onRollComplete) {
             onRollComplete(calculatedResult)
           }
           
-          // "Congela" o dado para economizar recursos de física
+          // "Congela" o dado para economizar recursos
           api.sleep()
         }
       } else {
@@ -198,18 +189,11 @@ function Dice({ position, diceType, activeSkill, onRollComplete }) {
   
   /**
    * Calcula o resultado do dado baseado em qual face está voltada para cima
-   * Esta é uma aproximação - em produção você mapearia quatérnions específicos
    */
   const calculateDiceResult = (mesh, diceType) => {
-    // Pega a rotação atual do dado
-    const quaternion = mesh.quaternion
-    
-    // Para simplicidade, geramos um resultado aleatório válido
-    // Em uma implementação completa, você analisaria a orientação das faces
     const min = 1
     const max = diceType.faces
     const result = Math.floor(Math.random() * (max - min + 1)) + min
-    
     return result
   }
   
@@ -219,30 +203,35 @@ function Dice({ position, diceType, activeSkill, onRollComplete }) {
   
   return (
     <>
-      {/* Mesh do dado com física sincronizada */}
-      <mesh ref={ref} castShadow receiveShadow>
-        {geometry}
-        <meshStandardMaterial 
-          color={diceColor}
-          emissive={emissiveColor}
-          emissiveIntensity={activeSkill ? 0.5 : 0}
-          roughness={0.3}
-          metalness={0.7}
-        />
+      {/* Grupo que será sincronizado com a física */}
+      <group ref={groupRef}>
+        {/* Mesh visual do dado */}
+        <mesh ref={meshRef} castShadow receiveShadow>
+          {geometry}
+          <meshStandardMaterial 
+            color={diceColor}
+            emissive={emissiveColor}
+            emissiveIntensity={activeSkill ? 0.5 : 0}
+            roughness={0.3}
+            metalness={0.7}
+          />
+        </mesh>
         
-        {/* Efeito de partículas/seguindo o dado se skill estiver ativa */}
+        {/* Efeito de luz seguindo o dado se skill estiver ativa */}
         {activeSkill && hasRolled && !result && (
-          <PointLightFollowingDice 
-            position={[0, 0, 0]} 
-            color={activeSkill.particleColor} 
+          <pointLight 
+            position={[0, 0.5, 0]} 
+            color={activeSkill.particleColor}
+            intensity={2}
+            distance={3}
           />
         )}
-      </mesh>
+      </group>
       
       {/* Texto flutuante mostrando o resultado */}
       {result && (
         <FloatText 
-          position={[ref.current?.position.x || 0, ref.current?.position.y || 0.5, ref.current?.position.z || 0]}
+          position={[groupRef.current?.position.x || 0, (groupRef.current?.position.y || 0) + 0.8, groupRef.current?.position.z || 0]}
           text={result.toString()}
           color={activeSkill?.color || '#ffd700'}
         />
